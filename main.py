@@ -27,6 +27,9 @@ from torchlight import DictAction
 import resource
 import copy
 from torch import linalg as LA
+import wandb
+
+wandb.init(project='Hyper')
 
 
 "https://github.com/ajbrock/BigGAN-PyTorch/blob/master/utils.py"
@@ -169,7 +172,7 @@ def get_parser():
     parser.add_argument(
         '--num-worker',
         type=int,
-        default=48,
+        default=10,
         help='the number of worker for data loader')
     parser.add_argument(
         '--train-feeder-args',
@@ -250,7 +253,7 @@ def get_parser():
 
 
 class Processor():
-    """ 
+    """
         Processor for Skeleton-based Action Recgnition
     """
 
@@ -262,13 +265,13 @@ class Processor():
                 arg.model_saved_name = os.path.join(arg.work_dir, 'runs')
                 if os.path.isdir(arg.model_saved_name):
                     print('log_dir: ', arg.model_saved_name, 'already exist')
-                    answer = input('delete it? y/n:')
-                    if answer == 'y':
-                        shutil.rmtree(arg.model_saved_name)
-                        print('Dir removed: ', arg.model_saved_name)
-                        input('Refresh the website of tensorboard by pressing any keys')
-                    else:
-                        print('Dir not removed: ', arg.model_saved_name)
+                    # answer = input('delete it? y/n:')
+                    # if answer == 'y':
+                    #     shutil.rmtree(arg.model_saved_name)
+                    #     print('Dir removed: ', arg.model_saved_name)
+                    #     input('Refresh the website of tensorboard by pressing any keys')
+                    # else:
+                    #     print('Dir not removed: ', arg.model_saved_name)
                 self.train_writer = SummaryWriter(os.path.join(arg.model_saved_name, 'train'), 'train')
                 self.val_writer = SummaryWriter(os.path.join(arg.model_saved_name, 'val'), 'val')
             else:
@@ -465,7 +468,7 @@ class Processor():
         process = tqdm(loader, ncols=40)
 
         # mix_precision is slower for this model!!!
-        use_amp = True
+        use_amp = True # True
         scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
         # torch.autograd.set_detect_anomaly(True)
 
@@ -495,8 +498,7 @@ class Processor():
 
 
             with torch.cuda.amp.autocast(enabled=use_amp):
-                output, z = self.model(data, F.one_hot(label, num_classes=self.model.module.num_class))
-                # output, z = self.model(data, F.one_hot(label, num_classes=self.model.num_class))
+                output, z = self.model(data, F.one_hot(label, num_classes=self.model.module.num_class if hasattr(self.model, 'module') else self.model.num_class))
 
                 loss = self.loss(output, label)
             loss2 = torch.zeros_like(loss).cuda(loss.device)
@@ -542,6 +544,12 @@ class Processor():
 
             torch.save(weights, self.arg.model_saved_name + '-' + str(epoch+1) + '-' + str(int(self.global_step)) + '.pt')
 
+        self.log_dict.update({
+            'lr': self.lr,
+            'train/loss': np.mean(loss_value),
+            'train/acc': np.mean(acc_value),
+        })
+
     def eval(self, epoch, save_score=False, loader_name=['test'], wrong_file=None, result_file=None):
         if wrong_file is not None:
             f_w = open(wrong_file, 'w')
@@ -570,11 +578,11 @@ class Processor():
                 with torch.no_grad():
                     data = data.float().cuda(self.output_device)
                     label = label.long().cuda(self.output_device)
-                    output, z = self.model(data, F.one_hot(label, num_classes=self.model.module.num_class))
+                    output, z = self.model(data, F.one_hot(label, num_classes=self.model.module.num_class if hasattr(self.model, 'module') else self.model.num_class))
                     # output, z = self.model(data, F.one_hot(label, num_classes=self.model.num_class))
                     if arg.ema:
                         self.model_ema.cuda(self.output_device)
-                        output_ema, z_ema = self.model_ema(data, F.one_hot(label, num_classes=self.model.module.num_class))
+                        output_ema, z_ema = self.model_ema(data, F.one_hot(label, num_classes=self.model.module.num_class if hasattr(self.model, 'module') else self.model.num_class))
 
                     loss = self.loss(output, label)
                     if arg.ema:
@@ -638,6 +646,11 @@ class Processor():
                     self.val_writer.add_scalar('loss_ema', loss_ema, self.global_step)
                     self.val_writer.add_scalar('acc_ema', accuracy_ema, self.global_step)
 
+                self.log_dict.update({
+                    'val/loss': loss,
+                    'val/acc': accuracy,
+                })
+
             score_dict = dict(
                 zip(self.data_loader[ln].dataset.sample_name, score))
             if self.arg.ema:
@@ -699,6 +712,7 @@ class Processor():
             def count_parameters(model):
                 return sum(p.numel() for p in model.parameters() if p.requires_grad)
             self.print_log(f'# Parameters: {count_parameters(self.model)}')
+            self.log_dict = {}
             for epoch in range(self.arg.start_epoch, self.arg.num_epoch):
                 save_model = (((epoch + 1) % self.arg.save_interval == 0) or (
                         epoch + 1 == self.arg.num_epoch)) and (epoch+1) > self.arg.save_epoch
@@ -708,6 +722,11 @@ class Processor():
                 if self.arg.ema:
                     ema_update(self.model, self.model_ema, itr=epoch)
                 self.eval(epoch, save_score=self.arg.save_score, loader_name=['test'])
+
+                if epoch == 0:
+                    wandb.init(project="Hyperformer", name=self.arg.work_dir)
+
+                wandb.log(self.log_dict)
 
             # test the best model
             weights_path = glob.glob(os.path.join(self.arg.work_dir, 'runs-'+str(self.best_acc_epoch)+'*'))[0]
@@ -763,7 +782,7 @@ if __name__ == '__main__':
     p = parser.parse_args()
     if p.config is not None:
         with open(p.config, 'r') as f:
-            default_arg = yaml.load(f)
+            default_arg = yaml.safe_load(f)
         key = vars(p).keys()
         for k in default_arg.keys():
             if k not in key:
