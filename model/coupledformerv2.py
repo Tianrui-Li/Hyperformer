@@ -105,8 +105,12 @@ class CoupledFormerV2(nn.Module):
         for layer in self.layers:
             x = layer(x, self.joint_label, groups)
 
-        x = rearrange(x, '(n m) t c -> n m t c', n=N, m=M)
-        x = x.mean(2).mean(1)
+        if x.dim() == 3:
+            x = rearrange(x, '(n m) t c -> n m t c', n=N, m=M)
+            x = x.mean(2).mean(1)
+        else:
+            x = x.view(N, M, C, -1)
+            x = x.mean(3).mean(1)
         x = self.fc(self.drop_out(x))
 
         return x, y
