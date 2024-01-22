@@ -347,7 +347,9 @@ class MHSA(nn.Module):
 
         a = q @ k.transpose(-2, -1)
 
-        attn = a + b + c + d
+        # 去除BCD
+        # attn = a + b + c + d
+        attn = a
 
         attn = attn * self.scale
 
