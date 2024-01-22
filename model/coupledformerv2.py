@@ -109,8 +109,9 @@ class CoupledFormerV2(nn.Module):
             x = rearrange(x, '(n m) t c -> n m t c', n=N, m=M)
             x = x.mean(2).mean(1)
         else:
-            x = x.view(N, M, C, -1)
+            x = x.view(N, M, 24*9, -1)
             x = x.mean(3).mean(1)
+
         x = self.fc(self.drop_out(x))
 
         return x, y
