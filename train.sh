@@ -18,5 +18,8 @@
 #python main.py  \
 #--config config/ucla/joint.yaml --model model.Hyperformer.Model --work-dir work_dir/ucla/Hyperformer_joint  --device 0 1 --base-lr 2.5e-2
 
+#python main.py  \
+#--config config/nturgbd-cross-subject/coupled_joint.yaml --model model.coupledformerv2.CoupledFormerV2 --work-dir /data/users/li/work_dir/ntu60/csub/CoupledFormerV2_joint  --device 0 --base-lr 5e-2 --batch-size 128
+
 python main.py  \
---config config/nturgbd-cross-subject/coupled_joint.yaml --model model.coupledformerv2.CoupledFormerV2 --work-dir /data/users/li/work_dir/ntu60/csub/CoupledFormerV2_joint  --device 1 --base-lr 5e-2 --batch-size 128
+--config config/nturgbd-cross-subject/coupled_joint.yaml --model model.coupledformerv2.CoupledFormerV2 --work-dir /data/users/li/work_dir/ntu60/csub/CoupledFormerV2_joint  --device 1 --base-lr 5e-2
