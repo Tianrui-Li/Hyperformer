@@ -172,7 +172,7 @@ def get_parser():
     parser.add_argument(
         '--num-worker',
         type=int,
-        default=32,
+        default=16,
         help='the number of worker for data loader')
     parser.add_argument(
         '--train-feeder-args',
