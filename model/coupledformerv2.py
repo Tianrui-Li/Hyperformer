@@ -14,9 +14,9 @@ class CoupledFormerV2(nn.Module):
             # dims=(24*9, 64, 128, 256),
             # depths=(2, 2, 4, 2),
             # mhsa_types=('l', 'l', 'l', 'g'),
-            dims=(24 * 9, 24 * 9, 24 * 9),
-            depths=(5, 3, 2),
-            mhsa_types=('l', 'l', 'l'),
+            dims=(24 * 9, 24 * 9, 24 * 9, 256),
+            depths=(5, 3, 2, 2),
+            mhsa_types=('l', 'l', 'l', 'g'),
             num_point=20,
             num_person=2,
             graph=None,
@@ -25,6 +25,7 @@ class CoupledFormerV2(nn.Module):
             ff_mult=4,
             # dim_head=64,
             dim_head=24,
+            attn_head=64,
             drop=0,
             joint_label=[],
             num_frames=64,
@@ -52,6 +53,7 @@ class CoupledFormerV2(nn.Module):
         for ind, (depth, mhsa_type) in enumerate(zip(depths, mhsa_types)):
             stage_dim = dims[ind]
             heads = stage_dim // dim_head
+            Attn_heads = stage_dim // attn_head
 
             for j in range(1, depth+1):
                 if mhsa_type == 'l':
@@ -60,7 +62,7 @@ class CoupledFormerV2(nn.Module):
                         out_channels=dims[ind],
                         A=A,
                         # stride=2 if j == depth else 1,
-                        stride=2 if j == depth and ind != len(depths) - 1 else 1,
+                        stride=2 if j == depth and ind != len(depths) - 2 else 1,
                         num_of_heads=heads,
                         num_point=num_point,
                     )
@@ -69,8 +71,8 @@ class CoupledFormerV2(nn.Module):
                         dim_in=dim_in,
                         dim=dims[ind],
                         A=A,
-                        num_heads=heads,
-                        num_frames=frames[ind],
+                        num_heads=Attn_heads,
+                        num_frames=frames[ind]*2,
                         ff_mult=ff_mult,
                     )
                 else:
